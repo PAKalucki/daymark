@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f1e8">
+  <meta name="description" content="A private, self-hosted calendar for tracking everyday events.">
+  <title>Daymark</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Daymark home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Daymark</span>
+      </a>
+      <p class="tagline">Notice the rhythm of your days.</p>
+      <button class="button primary mobile-add" type="button" data-open-event>+ New event</button>
+    </header>
+
+    <main class="layout">
+      <aside class="event-panel panel" aria-labelledby="events-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Your markers</p>
+            <h2 id="events-title">Events</h2>
+          </div>
+          <button class="icon-button" type="button" aria-label="Create new event" title="Create new event" data-open-event>+</button>
+        </div>
+        <div id="event-list" class="event-list" aria-live="polite"></div>
+        <button class="button secondary add-wide" type="button" data-open-event>
+          <span aria-hidden="true">＋</span> Create event
+        </button>
+      </aside>
+
+      <section class="calendar-panel panel" aria-labelledby="month-title">
+        <div class="calendar-toolbar">
+          <div>
+            <p class="eyebrow">Calendar</p>
+            <h1 id="month-title"></h1>
+          </div>
+          <div class="calendar-actions">
+            <button class="button ghost" type="button" id="today-button">Today</button>
+            <div class="month-nav" aria-label="Change month">
+              <button class="icon-button" type="button" id="previous-month" aria-label="Previous month">‹</button>
+              <button class="icon-button" type="button" id="next-month" aria-label="Next month">›</button>
+            </div>
+          </div>
+        </div>
+        <div class="weekday-row" aria-hidden="true">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div id="calendar-grid" class="calendar-grid" aria-label="Calendar days"></div>
+        <p class="calendar-hint"><span aria-hidden="true">↗</span> Select any day to add or remove an event.</p>
+      </section>
+
+      <aside class="stats-panel panel" aria-labelledby="stats-heading">
+        <div id="stats-content" class="stats-content"></div>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="event-dialog" class="dialog">
+    <form id="event-form" method="dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow" id="event-dialog-kicker">New marker</p>
+          <h2 id="event-dialog-title">Create event</h2>
+        </div>
+        <button type="button" class="close-button" data-close aria-label="Close">×</button>
+      </div>
+      <input type="hidden" id="event-id">
+      <label class="field">
+        <span>Event name</span>
+        <input id="event-name" name="name" maxlength="60" autocomplete="off" placeholder="e.g. Morning run" required>
+      </label>
+      <fieldset class="color-field">
+        <legend>Color</legend>
+        <div id="color-options" class="color-options"></div>
+      </fieldset>
+      <p id="event-form-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" id="delete-event" class="button danger hidden">Delete</button>
+        <span class="action-spacer"></span>
+        <button type="button" class="button ghost" data-close>Cancel</button>
+        <button type="submit" class="button primary" id="save-event">Create event</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="day-dialog" class="dialog day-dialog">
+    <div class="dialog-heading">
+      <div>
+        <p class="eyebrow">Daily record</p>
+        <h2 id="day-dialog-title"></h2>
+      </div>
+      <button type="button" class="close-button" data-close aria-label="Close">×</button>
+    </div>
+    <div id="day-event-list" class="day-event-list"></div>
+    <div class="dialog-actions">
+      <button type="button" class="button primary" data-close>Done</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

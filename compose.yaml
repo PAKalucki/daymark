@@ -1,0 +1,12 @@
+services:
+  daymark:
+    build: .
+    image: daymark:local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - daymark-data:/data
+
+volumes:
+  daymark-data:
