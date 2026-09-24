@@ -6,6 +6,7 @@ Daymark is a small, self-hosted calendar for tracking recurring events and seein
 
 - Define, rename, recolor, and delete event types.
 - Mark each event once per day, with any number of different events on the same day.
+- Optionally record an intensity from 1 to 10 for each marked occurrence. Open a day and use its intensity selector to set, change, or clear the value.
 - Navigate a monthly calendar that works on desktop and mobile browsers.
 - See weekly and monthly counts, averages, streaks, and all-time totals for each event.
 - Keep data in a local SQLite database with no external service or account required.
@@ -77,4 +78,6 @@ go test ./...
 go vet ./...
 ```
 
-The health endpoint is available at `GET /api/health`. SQLite runs in WAL mode, foreign keys are enabled, and event deletion cascades to that event’s calendar marks.
+The health endpoint is available at `GET /api/health`. SQLite runs in WAL mode, foreign keys are enabled, and event deletion cascades to that event’s calendar marks. Existing databases gain the nullable occurrence intensity column on startup; previous marks keep their intensity unset.
+
+`PUT /api/occurrences` accepts `event_id`, `date`, and an optional integer `intensity` from 1 to 10. Send `null` or omit `intensity` to leave it unset. Repeating the request updates that occurrence’s intensity. `GET /api/occurrences` includes `intensity` only when it is set.

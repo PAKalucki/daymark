@@ -29,8 +29,9 @@ type event struct {
 }
 
 type occurrence struct {
-	EventID int64  `json:"event_id"`
-	Date    string `json:"date"`
+	EventID   int64  `json:"event_id"`
+	Date      string `json:"date"`
+	Intensity *int   `json:"intensity,omitempty"`
 }
 
 type stats struct {
@@ -67,12 +68,44 @@ func openDB(path string) (*sql.DB, error) {
 		CREATE TABLE IF NOT EXISTS occurrences (
 			event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
 			date TEXT NOT NULL,
+			intensity INTEGER CHECK (intensity BETWEEN 1 AND 10),
 			PRIMARY KEY (event_id, date)
 		);
 		CREATE INDEX IF NOT EXISTS idx_occurrences_date ON occurrences(date);
 	`); err != nil {
 		db.Close()
 		return nil, err
+	}
+	rows, err := db.Query(`PRAGMA table_info(occurrences)`)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	hasIntensity := false
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			rows.Close()
+			db.Close()
+			return nil, err
+		}
+		if name == "intensity" {
+			hasIntensity = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		db.Close()
+		return nil, err
+	}
+	rows.Close()
+	if !hasIntensity {
+		if _, err := db.Exec(`ALTER TABLE occurrences ADD COLUMN intensity INTEGER CHECK (intensity BETWEEN 1 AND 10)`); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
 	return db, nil
 }
@@ -211,7 +244,7 @@ func (a *app) listOccurrences(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "start and end must be valid dates")
 		return
 	}
-	rows, err := a.db.Query(`SELECT event_id, date FROM occurrences WHERE date BETWEEN ? AND ? ORDER BY date, event_id`, start, end)
+	rows, err := a.db.Query(`SELECT event_id, date, intensity FROM occurrences WHERE date BETWEEN ? AND ? ORDER BY date, event_id`, start, end)
 	if err != nil {
 		writeError(w, 500, "could not load occurrences")
 		return
@@ -220,7 +253,7 @@ func (a *app) listOccurrences(w http.ResponseWriter, r *http.Request) {
 	items := []occurrence{}
 	for rows.Next() {
 		var item occurrence
-		if err := rows.Scan(&item.EventID, &item.Date); err != nil {
+		if err := rows.Scan(&item.EventID, &item.Date, &item.Intensity); err != nil {
 			writeError(w, 500, "could not load occurrences")
 			return
 		}
@@ -234,7 +267,8 @@ func (a *app) addOccurrence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, err := a.db.Exec(`INSERT INTO occurrences(event_id, date) VALUES (?, ?) ON CONFLICT DO NOTHING`, item.EventID, item.Date)
+	_, err := a.db.Exec(`INSERT INTO occurrences(event_id, date, intensity) VALUES (?, ?, ?)
+		ON CONFLICT(event_id, date) DO UPDATE SET intensity = excluded.intensity`, item.EventID, item.Date, item.Intensity)
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY") {
 			writeError(w, http.StatusNotFound, "event not found")
@@ -353,6 +387,10 @@ func decodeOccurrence(w http.ResponseWriter, r *http.Request) (occurrence, bool)
 	}
 	if item.EventID < 1 || !validDate(item.Date) {
 		writeError(w, http.StatusBadRequest, "event_id and a valid date are required")
+		return item, false
+	}
+	if item.Intensity != nil && (*item.Intensity < 1 || *item.Intensity > 10) {
+		writeError(w, http.StatusBadRequest, "intensity must be between 1 and 10")
 		return item, false
 	}
 	return item, true

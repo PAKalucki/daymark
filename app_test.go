@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -139,5 +140,105 @@ func TestRejectsInvalidDates(t *testing.T) {
 	})
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d, want 400", response.StatusCode)
+	}
+}
+
+func TestOccurrenceIntensity(t *testing.T) {
+	server := testServer(t)
+	event := createTestEvent(t, server, "Headache")
+	other := createTestEvent(t, server, "Exercise")
+	url := server.URL + "/api/occurrences"
+
+	for _, input := range []map[string]any{
+		{"event_id": event.ID, "date": "2026-09-17", "intensity": 1},
+		{"event_id": event.ID, "date": "2026-09-18", "intensity": 10},
+		{"event_id": other.ID, "date": "2026-09-17"},
+	} {
+		response, payload := request(t, server.Client(), http.MethodPut, url, input)
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("mark occurrence: status %d: %s", response.StatusCode, payload)
+		}
+	}
+
+	for _, intensity := range []any{0, 11, -1, 1.5, "5"} {
+		response, _ := request(t, server.Client(), http.MethodPut, url, map[string]any{
+			"event_id": event.ID, "date": "2026-09-17", "intensity": intensity,
+		})
+		if response.StatusCode != http.StatusBadRequest {
+			t.Fatalf("intensity %v: status %d, want 400", intensity, response.StatusCode)
+		}
+	}
+
+	response, payload := request(t, server.Client(), http.MethodPut, url, map[string]any{
+		"event_id": event.ID, "date": "2026-09-17", "intensity": 7,
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("update intensity: status %d: %s", response.StatusCode, payload)
+	}
+	response, payload = request(t, server.Client(), http.MethodGet, url+"?start=2026-09-17&end=2026-09-18", nil)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("list occurrences: status %d: %s", response.StatusCode, payload)
+	}
+	var items []occurrence
+	if err := json.Unmarshal(payload, &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 || items[0].Intensity == nil || *items[0].Intensity != 7 || items[1].Intensity != nil || items[2].Intensity == nil || *items[2].Intensity != 10 {
+		t.Fatalf("intensities are not independent: %+v", items)
+	}
+
+	response, payload = request(t, server.Client(), http.MethodPut, url, map[string]any{
+		"event_id": event.ID, "date": "2026-09-17", "intensity": nil,
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("clear intensity: status %d: %s", response.StatusCode, payload)
+	}
+	if bytes.Contains(payload, []byte(`"intensity"`)) {
+		t.Fatalf("cleared intensity should be omitted: %s", payload)
+	}
+	_, payload = request(t, server.Client(), http.MethodGet, url+"?start=2026-09-17&end=2026-09-17", nil)
+	items = nil
+	if err := json.Unmarshal(payload, &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 || items[0].Intensity != nil || items[1].Intensity != nil {
+		t.Fatalf("clearing intensity changed other occurrences: %+v", items)
+	}
+}
+
+func TestOpenDBMigratesExistingOccurrences(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "existing.db")
+	oldDB, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = oldDB.Exec(`
+		CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL, color TEXT NOT NULL, created_at TEXT NOT NULL);
+		CREATE TABLE occurrences (event_id INTEGER NOT NULL, date TEXT NOT NULL, PRIMARY KEY (event_id, date));
+		INSERT INTO events VALUES (1, 'Headache', '#557A67', '2026-09-17T00:00:00Z');
+		INSERT INTO occurrences VALUES (1, '2026-09-17');
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := oldDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	for range 2 {
+		db, err := openDB(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var intensity sql.NullInt64
+		if err := db.QueryRow(`SELECT intensity FROM occurrences WHERE event_id = 1 AND date = '2026-09-17'`).Scan(&intensity); err != nil {
+			t.Fatal(err)
+		}
+		if intensity.Valid {
+			t.Fatalf("migrated occurrence intensity should be unset: %v", intensity.Int64)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

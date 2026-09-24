@@ -25,7 +25,7 @@ body {
     var(--paper);
 }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { color: inherit; }
 
 .app-shell { max-width: 1600px; margin: 0 auto; padding: 0 32px 32px; }
@@ -65,7 +65,7 @@ h3 { margin: 0; font-size: 15px; }
 .danger { background: #f7e9e4; color: #9e3e2e; }
 .icon-button { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #e8ece6; font-size: 21px; line-height: 1; }
 .close-button { padding: 4px; background: transparent; color: #7f877f; font-size: 28px; line-height: 1; }
-.button:focus-visible, .icon-button:focus-visible, .close-button:focus-visible, .day:focus-visible, .event-row:focus-visible, input:focus-visible { outline: 3px solid rgba(49, 92, 73, 0.24); outline-offset: 2px; }
+.button:focus-visible, .icon-button:focus-visible, .close-button:focus-visible, .day:focus-visible, .event-row:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(49, 92, 73, 0.24); outline-offset: 2px; }
 
 .event-list { display: flex; flex-direction: column; gap: 5px; margin: 20px 0; }
 .event-row { position: relative; display: grid; grid-template-columns: 11px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 39px; padding: 7px 7px 7px 9px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; }
@@ -93,7 +93,8 @@ h3 { margin: 0; font-size: 15px; }
 .marks { display: flex; flex-direction: column; gap: 3px; }
 .mark { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 3px 5px; border-radius: 5px; background: color-mix(in srgb, var(--event-color) 12%, transparent); font-size: 9px; font-weight: 680; }
 .mark::before { content: ""; flex: 0 0 auto; width: 5px; height: 5px; border-radius: 50%; background: var(--event-color); }
-.mark span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mark-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mark-intensity { flex: 0 0 auto; margin-left: auto; color: var(--event-color); font-size: 9px; font-weight: 800; }
 .more-marks { padding-left: 5px; color: var(--muted); font-size: 9px; font-weight: 700; }
 .calendar-hint { display: flex; gap: 6px; align-items: center; margin: 12px 2px 0; color: #8c938d; font-size: 10px; }
 
@@ -130,10 +131,14 @@ h3 { margin: 0; font-size: 15px; }
 .form-error { min-height: 16px; margin: 12px 0 -10px; color: #a34031; font-size: 11px; }
 .hidden { display: none !important; }
 .day-event-list { display: flex; flex-direction: column; gap: 7px; }
-.day-event-option { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; min-height: 48px; padding: 8px 11px; border: 1px solid #e0ded5; border-radius: 11px; background: #fff; cursor: pointer; }
+.day-event-option { display: grid; gap: 4px; min-height: 48px; padding: 8px 11px; border: 1px solid #e0ded5; border-radius: 11px; background: #fff; }
 .day-event-option:hover { border-color: #c2cbc3; }
-.day-event-option input { width: 17px; height: 17px; accent-color: var(--event-color); }
-.day-event-option .event-dot { width: 10px; height: 10px; }
+.day-event-toggle { display: flex; align-items: center; gap: 11px; min-height: 30px; cursor: pointer; }
+.day-event-toggle input { width: 17px; height: 17px; accent-color: var(--event-color); }
+.day-event-toggle .event-name { flex: 1; }
+.day-event-toggle .event-dot { width: 10px; height: 10px; }
+.intensity-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: 28px; color: var(--muted); font-size: 11px; }
+.intensity-field select { width: 100px; height: 30px; padding: 0 6px; border: 1px solid #cfd3cc; border-radius: 7px; background: #fff; color: var(--ink); cursor: pointer; }
 .day-empty { padding: 20px; border: 1px dashed var(--line); border-radius: 11px; color: var(--muted); font-size: 12px; text-align: center; }
 .toast { position: fixed; left: 50%; bottom: 22px; z-index: 20; transform: translate(-50%, 20px); padding: 10px 15px; border-radius: 9px; background: #203128; color: #fff; box-shadow: var(--shadow); font-size: 12px; opacity: 0; pointer-events: none; transition: 180ms ease; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
@@ -172,7 +177,8 @@ h3 { margin: 0; font-size: 15px; }
   .day-number { width: 22px; height: 22px; margin: 0 auto 4px; }
   .mark { justify-content: center; padding: 2px; background: transparent; }
   .mark::before { width: 7px; height: 7px; }
-  .mark span { display: none; }
+  .mark-name { display: none; }
+  .mark-intensity { margin-left: 0; }
   .marks { flex-flow: row wrap; justify-content: center; gap: 3px; }
   .more-marks { width: 100%; padding: 0; text-align: center; font-size: 8px; }
   .calendar-hint { padding: 0 5px; }

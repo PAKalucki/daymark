@@ -111,7 +111,7 @@ function renderCalendar() {
   state.occurrences.forEach((item) => {
     const existing = byDate.get(item.date) || [];
     const event = state.events.find((candidate) => candidate.id === item.event_id);
-    if (event) existing.push(event);
+    if (event) existing.push({ event, intensity: item.intensity });
     byDate.set(item.date, existing);
   });
 
@@ -123,19 +123,28 @@ function renderCalendar() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `day${date.getMonth() !== state.month.getMonth() ? " outside" : ""}${dateString === today ? " today" : ""}`;
-    button.setAttribute("aria-label", `${date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}${marks.length ? `, ${marks.length} marked` : ""}`);
+    const markSummary = marks.map(({ event, intensity }) => `${event.name}${intensity == null ? "" : `, intensity ${intensity} out of 10`}`).join("; ");
+    button.setAttribute("aria-label", `${date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}${markSummary ? `, ${markSummary}` : ""}`);
     const number = document.createElement("span");
     number.className = "day-number";
     number.textContent = date.getDate();
     const marksNode = document.createElement("span");
     marksNode.className = "marks";
-    marks.slice(0, 3).forEach((event) => {
+    marks.slice(0, 3).forEach(({ event, intensity }) => {
       const mark = document.createElement("span");
       mark.className = "mark";
       mark.style.setProperty("--event-color", event.color);
       const name = document.createElement("span");
+      name.className = "mark-name";
       name.textContent = event.name;
       mark.append(name);
+      if (intensity != null) {
+        const value = document.createElement("span");
+        value.className = "mark-intensity";
+        value.textContent = intensity;
+        mark.title = `${event.name}: intensity ${intensity}/10`;
+        mark.append(value);
+      }
       marksNode.append(mark);
     });
     if (marks.length > 3) {
@@ -211,35 +220,72 @@ function renderDayOptions() {
     return;
   }
   state.events.forEach((event) => {
-    const marked = state.occurrences.some((item) => item.event_id === event.id && item.date === state.selectedDate);
-    const label = document.createElement("label");
-    label.className = "day-event-option";
-    label.style.setProperty("--event-color", event.color);
-    label.innerHTML = `<input type="checkbox" ${marked ? "checked" : ""}><span class="event-name"></span><span class="event-dot" style="background:${event.color}"></span>`;
-    label.querySelector(".event-name").textContent = event.name;
-    label.querySelector("input").addEventListener("change", async (changeEvent) => {
+    const occurrence = state.occurrences.find((item) => item.event_id === event.id && item.date === state.selectedDate);
+    const row = document.createElement("div");
+    row.className = "day-event-option";
+    row.style.setProperty("--event-color", event.color);
+    row.innerHTML = `<label class="day-event-toggle"><input type="checkbox"><span class="event-name"></span><span class="event-dot" style="background:${event.color}"></span></label><label class="intensity-field"><span>Intensity (optional)</span><select aria-label="${escapeHTML(event.name)} intensity"><option value="">Not set</option></select></label>`;
+    row.querySelector(".event-name").textContent = event.name;
+    const checkbox = row.querySelector("input");
+    const intensityField = row.querySelector(".intensity-field");
+    const select = row.querySelector("select");
+    checkbox.checked = Boolean(occurrence);
+    for (let value = 1; value <= 10; value += 1) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      select.append(option);
+    }
+    select.value = occurrence?.intensity == null ? "" : String(occurrence.intensity);
+    select.disabled = !occurrence;
+    intensityField.classList.toggle("hidden", !occurrence);
+    checkbox.addEventListener("change", async (changeEvent) => {
       const checkbox = changeEvent.currentTarget;
       checkbox.disabled = true;
+      select.disabled = true;
       try {
-        await api("/api/occurrences", {
+        const saved = await api("/api/occurrences", {
           method: checkbox.checked ? "PUT" : "DELETE",
           body: JSON.stringify({ event_id: event.id, date: state.selectedDate }),
         });
         if (checkbox.checked) {
-          state.occurrences.push({ event_id: event.id, date: state.selectedDate });
+          state.occurrences.push(saved);
         } else {
           state.occurrences = state.occurrences.filter((item) => !(item.event_id === event.id && item.date === state.selectedDate));
+          select.value = "";
         }
+        select.disabled = !checkbox.checked;
+        intensityField.classList.toggle("hidden", !checkbox.checked);
         renderCalendar();
         if (state.selectedEventId === event.id) renderStats();
       } catch (error) {
         checkbox.checked = !checkbox.checked;
+        select.disabled = !checkbox.checked;
         showToast(error.message);
       } finally {
         checkbox.disabled = false;
       }
     });
-    els.dayEventList.append(label);
+    select.addEventListener("change", async () => {
+      const previous = state.occurrences.find((item) => item.event_id === event.id && item.date === state.selectedDate);
+      select.disabled = true;
+      checkbox.disabled = true;
+      try {
+        const saved = await api("/api/occurrences", {
+          method: "PUT",
+          body: JSON.stringify({ event_id: event.id, date: state.selectedDate, intensity: select.value === "" ? null : Number(select.value) }),
+        });
+        state.occurrences = state.occurrences.map((item) => item.event_id === event.id && item.date === state.selectedDate ? saved : item);
+        renderCalendar();
+      } catch (error) {
+        select.value = previous?.intensity == null ? "" : String(previous.intensity);
+        showToast(error.message);
+      } finally {
+        select.disabled = false;
+        checkbox.disabled = false;
+      }
+    });
+    els.dayEventList.append(row);
   });
 }
 
